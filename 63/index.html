@@ -104,12 +104,17 @@
   .qday b{font-size:30px; font-weight:800; letter-spacing:-0.04em; line-height:1.15;}
   .qday span{font-size:15px; font-weight:700; color:var(--sub);}
   .qsub{margin:10px 0 0; font-size:13px; color:var(--sub); font-weight:500;}
-  button.reset{
+  .datebtn{
+    position:relative; display:inline-flex; align-items:center; justify-content:center;
     height:38px; padding:0 14px; border:1px solid #E5E8EB; border-radius:10px;
-    background:#fff; color:#4E5968; font-size:14px; font-weight:700;
-    font-family:inherit; flex:none;
+    background:#fff; color:#4E5968; font-size:14px; font-weight:700; flex:none;
   }
-  button.reset:active{background:#F2F4F6;}
+  .datebtn:active{background:#F2F4F6;}
+  .datebtn input{
+    position:absolute; left:0; top:0; width:100%; height:100%;
+    opacity:0; margin:0; padding:0; border:none; background:none;
+    -webkit-appearance:none; appearance:none;
+  }
 
   #toast{
     position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom));
@@ -347,7 +352,7 @@
     var changed=false;
     QUITS.forEach(function(q){
       if(!db.streaks[q.k] || !db.streaks[q.k].start){
-        db.streaks[q.k]={start:TODAY, best:0};
+        db.streaks[q.k]={start:TODAY};
         changed=true;
       }
     });
@@ -361,31 +366,32 @@
   function renderQuits(){
     document.getElementById('quits').innerHTML=QUITS.map(function(q){
       var st=db.streaks[q.k], n=daysSince(st.start), d=toDate(st.start);
-      var best=Math.max(st.best||0,n);
       return '<div class="quit">'+
         '<div class="qhead">'+
           '<div>'+
             '<div class="qname">'+q.t+' 끊은 지</div>'+
             '<div class="qday"><b>'+n+'</b><span>일째</span></div>'+
           '</div>'+
-          '<button class="reset" data-q="'+q.k+'">초기화</button>'+
+          '<label class="datebtn"><span>날짜 수정</span>'+
+            '<input type="date" data-q="'+q.k+'" value="'+st.start+'" max="'+TODAY+'">'+
+          '</label>'+
         '</div>'+
-        '<p class="qsub">'+(d.getMonth()+1)+'월 '+d.getDate()+'일 시작 · 최고 '+best+'일</p>'+
+        '<p class="qsub">'+(d.getMonth()+1)+'월 '+d.getDate()+'일부터</p>'+
       '</div>';
     }).join('');
   }
 
-  document.getElementById('quits').addEventListener('click',function(e){
-    var btn=e.target.closest('button.reset'); if(!btn) return;
-    var k=btn.dataset.q, q=null;
-    QUITS.forEach(function(x){ if(x.k===k) q=x; });
-    if(!q) return;
-    if(!confirm(q.o+' 다시 드셨나요?\n오늘부터 1일째로 새로 시작해요.')) return;
-    var st=db.streaks[k];
-    st.best=Math.max(st.best||0, daysSince(st.start));
-    st.start=TODAY;
+  document.getElementById('quits').addEventListener('change',function(e){
+    var el=e.target;
+    if(el.tagName!=='INPUT' || el.type!=='date') return;
+    var k=el.dataset.q, v=el.value;
+    if(!v || !db.streaks[k]){ renderQuits(); return; }
+    if(v>TODAY) v=TODAY;            // 오늘보다 뒤는 고를 수 없다
+    db.streaks[k].start=v;
     save(); renderQuits();
-    toast('오늘부터 다시 시작이에요');
+    var q=null;
+    QUITS.forEach(function(x){ if(x.k===k) q=x; });
+    toast((q?q.t:'')+' 시작일을 바꿨어요');
   });
 
   function renderAll(){ renderHeader(); renderSummary(); renderChart(); renderQuits(); renderTasks(); renderWeek(); }
