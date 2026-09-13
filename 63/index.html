@@ -95,6 +95,21 @@
   .dots span.on{background:var(--blue);}
   .dots b{font-size:15px; font-weight:700; margin-left:2px;}
 
+  .quit{background:var(--fill); border-radius:14px; padding:16px; margin-bottom:8px;}
+  .quit:last-child{margin-bottom:0;}
+  .qhead{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .qname{font-size:14px; color:var(--sub); font-weight:600;}
+  .qday{display:flex; align-items:baseline; gap:3px; margin-top:2px;}
+  .qday b{font-size:30px; font-weight:800; letter-spacing:-0.04em; line-height:1.15;}
+  .qday span{font-size:15px; font-weight:700; color:var(--sub);}
+  .qsub{margin:10px 0 0; font-size:13px; color:var(--sub); font-weight:500;}
+  button.reset{
+    height:38px; padding:0 14px; border:1px solid #E5E8EB; border-radius:10px;
+    background:#fff; color:#4E5968; font-size:14px; font-weight:700;
+    font-family:inherit; flex:none;
+  }
+  button.reset:active{background:#F2F4F6;}
+
   #toast{
     position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom));
     transform:translate(-50%,12px); background:rgba(25,31,40,.92); color:#fff;
@@ -133,6 +148,11 @@
 </section>
 
 <section class="card">
+  <h2>끊는 중</h2>
+  <div id="quits"></div>
+</section>
+
+<section class="card">
   <h2>오늘 할 일</h2>
   <ul class="tasks" id="tasks"></ul>
 </section>
@@ -160,14 +180,20 @@
     {k:'ex',    t:'푸쉬업 + 스쿼트·플랭크'}
   ];
   var DAYNAME=['월','화','수','목','금','토','일'];
+  var QUITS=[
+    {k:'coffee',  t:'커피', o:'커피를'},
+    {k:'alcohol', t:'술',   o:'술을'}
+  ];
 
-  var db={weights:{},checks:{}};
+
+  var db={weights:{},checks:{},streaks:{}};
   try{
     var raw=localStorage.getItem(KEY);
     if(raw){
       var p=JSON.parse(raw);
       db.weights=p.weights||{};
       db.checks=p.checks||{};
+      db.streaks=p.streaks||{};
     }
   }catch(e){}
   function save(){ try{ localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){} }
@@ -315,7 +341,53 @@
     document.getElementById('tennis').innerHTML=dots+'<b>'+cnt+' / 3회</b>';
   }
 
-  function renderAll(){ renderHeader(); renderSummary(); renderChart(); renderTasks(); renderWeek(); }
+  // 끊기 시작일이 없으면 앱을 처음 연 날을 시작일로 잡는다
+  (function(){
+    var changed=false;
+    QUITS.forEach(function(q){
+      if(!db.streaks[q.k] || !db.streaks[q.k].start){
+        db.streaks[q.k]={start:TODAY, best:0};
+        changed=true;
+      }
+    });
+    if(changed) save();
+  })();
+
+  function daysSince(s){
+    return Math.floor((toDate(TODAY)-toDate(s))/86400000)+1;
+  }
+
+  function renderQuits(){
+    document.getElementById('quits').innerHTML=QUITS.map(function(q){
+      var st=db.streaks[q.k], n=daysSince(st.start), d=toDate(st.start);
+      var best=Math.max(st.best||0,n);
+      return '<div class="quit">'+
+        '<div class="qhead">'+
+          '<div>'+
+            '<div class="qname">'+q.t+' 끊은 지</div>'+
+            '<div class="qday"><b>'+n+'</b><span>일째</span></div>'+
+          '</div>'+
+          '<button class="reset" data-q="'+q.k+'">초기화</button>'+
+        '</div>'+
+        '<p class="qsub">'+(d.getMonth()+1)+'월 '+d.getDate()+'일 시작 · 최고 '+best+'일</p>'+
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('quits').addEventListener('click',function(e){
+    var btn=e.target.closest('button.reset'); if(!btn) return;
+    var k=btn.dataset.q, q=null;
+    QUITS.forEach(function(x){ if(x.k===k) q=x; });
+    if(!q) return;
+    if(!confirm(q.o+' 다시 드셨나요?\n오늘부터 1일째로 새로 시작해요.')) return;
+    var st=db.streaks[k];
+    st.best=Math.max(st.best||0, daysSince(st.start));
+    st.start=TODAY;
+    save(); renderQuits();
+    toast('오늘부터 다시 시작이에요');
+  });
+
+  function renderAll(){ renderHeader(); renderSummary(); renderChart(); renderQuits(); renderTasks(); renderWeek(); }
 
   document.getElementById('save').addEventListener('click',function(){
     var el=document.getElementById('input');
