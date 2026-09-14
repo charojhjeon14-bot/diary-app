@@ -116,6 +116,21 @@
     -webkit-appearance:none; appearance:none;
   }
 
+  .hint{margin:-6px 0 16px; font-size:13px; color:var(--sub); font-weight:500; line-height:1.55;}
+  button.primary.wide{flex:1; padding:0;}
+  .ghost{
+    position:relative; display:inline-flex; align-items:center; justify-content:center;
+    height:54px; padding:0 20px; border:1px solid #E5E8EB; border-radius:14px;
+    background:#fff; color:#4E5968; font-size:16px; font-weight:700;
+    font-family:inherit; flex:none;
+  }
+  .ghost:active{background:#F7F8FA;}
+  .ghost input{
+    position:absolute; left:0; top:0; width:100%; height:100%;
+    opacity:0; margin:0; padding:0; border:none; background:none;
+    -webkit-appearance:none; appearance:none;
+  }
+
   #toast{
     position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom));
     transform:translate(-50%,12px); background:rgba(25,31,40,.92); color:#fff;
@@ -172,6 +187,18 @@
   </div>
 </section>
 
+<section class="card">
+  <h2>기록 백업</h2>
+  <p class="hint">기록은 이 폰 안에만 저장돼요. 가끔 파일로 내보내 두면 폰을 바꾸거나 기록이 지워져도 그대로 되살릴 수 있어요.</p>
+  <div class="row">
+    <button class="primary wide" id="export">파일로 내보내기</button>
+    <label class="ghost"><span>불러오기</span>
+      <input type="file" id="importFile" accept="application/json,.json">
+    </label>
+  </div>
+  <p class="qsub" id="backupInfo"></p>
+</section>
+
 <div id="toast"></div>
 
 <script>
@@ -192,7 +219,7 @@
   ];
 
 
-  var db={weights:{},checks:{},streaks:{}};
+  var db={weights:{},checks:{},streaks:{},lastBackup:''};
   try{
     var raw=localStorage.getItem(KEY);
     if(raw){
@@ -200,6 +227,7 @@
       db.weights=p.weights||{};
       db.checks=p.checks||{};
       db.streaks=p.streaks||{};
+      db.lastBackup=p.lastBackup||'';
     }
   }catch(e){}
   function save(){ try{ localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){} }
@@ -394,7 +422,93 @@
     toast((q?q.t:'')+' 시작일을 바꿨어요');
   });
 
-  function renderAll(){ renderHeader(); renderSummary(); renderChart(); renderQuits(); renderTasks(); renderWeek(); }
+  var DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
+
+  function renderBackup(){
+    var el=document.getElementById('backupInfo');
+    if(db.lastBackup && DATE_RE.test(db.lastBackup)){
+      var d=toDate(db.lastBackup);
+      el.textContent='마지막 백업 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';
+    }else{
+      el.textContent='아직 백업한 적이 없어요';
+    }
+  }
+
+  function markBackup(){
+    db.lastBackup=TODAY; save(); renderBackup();
+    toast('백업 파일을 내보냈어요');
+  }
+
+  function downloadBackup(text,name){
+    try{
+      var url=URL.createObjectURL(new Blob([text],{type:'application/json'}));
+      var a=document.createElement('a');
+      a.href=url; a.download=name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+      markBackup();
+    }catch(err){
+      toast('내보내기에 실패했어요');
+    }
+  }
+
+  document.getElementById('export').addEventListener('click',function(){
+    var text=JSON.stringify(db,null,2);
+    var name='63-project-backup-'+TODAY+'.json';
+    var file=null;
+    try{ file=new File([text],name,{type:'application/json'}); }catch(err){}
+    // 아이폰에서는 공유 시트로 '파일에 저장'이 가장 확실하다
+    if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({files:[file]}).then(markBackup).catch(function(err){
+        if(err && err.name==='AbortError') return;   // 사용자가 취소한 경우
+        downloadBackup(text,name);
+      });
+      return;
+    }
+    downloadBackup(text,name);
+  });
+
+  document.getElementById('importFile').addEventListener('change',function(e){
+    var input=e.target, f=input.files && input.files[0];
+    if(!f) return;
+    var r=new FileReader();
+    r.onerror=function(){ toast('파일을 읽지 못했어요'); input.value=''; };
+    r.onload=function(){
+      var p=null;
+      try{ p=JSON.parse(r.result); }catch(err){}
+      if(!p || typeof p!=='object' || (!p.weights && !p.checks && !p.streaks)){
+        toast('63 프로젝트 백업 파일이 아니에요'); input.value=''; return;
+      }
+      var W=p.weights||{}, C=p.checks||{}, S=p.streaks||{};
+      var nw=0, nc=0, k;
+      for(k in W){ if(DATE_RE.test(k) && !isNaN(parseFloat(W[k]))) nw++; }
+      for(k in C){ if(DATE_RE.test(k) && C[k] && typeof C[k]==='object') nc++; }
+      if(!nw && !nc){ toast('불러올 기록이 없어요'); input.value=''; return; }
+      if(!confirm('체중 기록 '+nw+'개, 체크 '+nc+'일치가 들어있어요.\n지금 기록에 합칠까요?')){
+        input.value=''; return;
+      }
+      for(k in W){
+        var v=parseFloat(W[k]);
+        if(DATE_RE.test(k) && !isNaN(v)) db.weights[k]=Math.round(v*10)/10;
+      }
+      for(k in C){
+        if(!DATE_RE.test(k) || !C[k] || typeof C[k]!=='object') continue;
+        var src=C[k], dst=db.checks[k]||{}, t;
+        for(t in src){ if(src[t]) dst[t]=true; }
+        db.checks[k]=dst;
+      }
+      QUITS.forEach(function(q){
+        var st=S[q.k];
+        if(st && DATE_RE.test(st.start)) db.streaks[q.k]={start:st.start};
+      });
+      save(); renderAll();
+      toast('기록을 불러왔어요');
+      input.value='';
+    };
+    r.readAsText(f);
+  });
+
+  function renderAll(){ renderHeader(); renderSummary(); renderChart(); renderQuits(); renderTasks(); renderWeek(); renderBackup(); }
 
   document.getElementById('save').addEventListener('click',function(){
     var el=document.getElementById('input');
