@@ -5,7 +5,7 @@
 // 캐시 이름에 p63- 접두사를 쓰고, 정리할 때도 그 접두사만 지운다.
 
 const PREFIX = 'p63-';
-const CACHE = PREFIX + 'v5';
+const CACHE = PREFIX + 'v6';
 
 const ASSETS = [
   './',

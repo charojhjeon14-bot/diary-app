@@ -33,6 +33,7 @@
   .card{background:var(--card); border-radius:20px; padding:20px; margin-bottom:12px;}
   .card h2{margin:0 0 16px; font-size:17px; font-weight:700; letter-spacing:-0.02em;}
   .label{font-size:14px; color:var(--sub); font-weight:600;}
+  .hint{margin:-6px 0 16px; font-size:13px; color:var(--sub); font-weight:500; line-height:1.55;}
 
   .big{display:flex; align-items:baseline; gap:4px; margin:6px 0 18px;}
   .big b{font-size:46px; font-weight:800; letter-spacing:-0.04em; line-height:1.1;}
@@ -55,46 +56,18 @@
     font-family:inherit; letter-spacing:-0.02em; min-width:0;
   }
   input[type=number]::placeholder{color:var(--gray); font-weight:700;}
-  input:focus{outline:2px solid var(--blue); outline-offset:-2px;}
+  input:focus,textarea:focus{outline:2px solid var(--blue); outline-offset:-2px;}
   button.primary{
     height:54px; padding:0 22px; border:none; border-radius:14px;
     background:var(--blue); color:#fff; font-size:16px; font-weight:700;
     font-family:inherit; letter-spacing:-0.02em; flex:none;
   }
   button.primary:active{background:#1B64DA;}
+  button.primary.wide{flex:1; width:100%; padding:0;}
 
   .chart{margin-top:18px;}
   .chart svg{display:block; width:100%; height:auto;}
   .empty{padding:28px 0; text-align:center; font-size:14px; color:var(--sub); font-weight:500;}
-
-  ul.tasks{list-style:none; margin:0; padding:0;}
-  ul.tasks li{display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--line);}
-  ul.tasks li:last-child{border-bottom:none; padding-bottom:0;}
-  ul.tasks li:first-child{padding-top:0;}
-  .box{
-    width:26px; height:26px; flex:none; border-radius:50%;
-    border:2px solid var(--gray); background:#fff;
-    display:flex; align-items:center; justify-content:center; transition:.15s;
-  }
-  .box svg{width:14px; height:14px; opacity:0;}
-  li.on .box{background:var(--blue); border-color:var(--blue);}
-  li.on .box svg{opacity:1;}
-  ul.tasks p{margin:0; font-size:16px; font-weight:600; letter-spacing:-0.02em;}
-  li.on p{color:var(--sub);}
-
-  .week{display:flex; gap:6px; align-items:flex-end;}
-  .day{flex:1; text-align:center;}
-  .track{height:80px; background:var(--fill); border-radius:8px; display:flex; align-items:flex-end; overflow:hidden;}
-  .track i{display:block; width:100%; background:var(--blue); border-radius:8px; transition:height .4s ease;}
-  .day em{display:block; font-style:normal; font-size:12px; color:var(--sub); font-weight:600; margin-top:8px;}
-  .day.today em{color:var(--blue); font-weight:800;}
-
-  .tennis{display:flex; align-items:center; justify-content:space-between; margin-top:20px; padding-top:18px; border-top:1px solid var(--line);}
-  .tennis p{margin:0; font-size:16px; font-weight:600;}
-  .dots{display:flex; align-items:center; gap:8px;}
-  .dots span{width:10px; height:10px; border-radius:50%; background:#E5E8EB;}
-  .dots span.on{background:var(--blue);}
-  .dots b{font-size:15px; font-weight:700; margin-left:2px;}
 
   .quit{background:var(--fill); border-radius:14px; padding:16px; margin-bottom:8px;}
   .quit:last-child{margin-bottom:0;}
@@ -116,8 +89,21 @@
     -webkit-appearance:none; appearance:none;
   }
 
-  .hint{margin:-6px 0 16px; font-size:13px; color:var(--sub); font-weight:500; line-height:1.55;}
-  button.primary.wide{flex:1; padding:0;}
+  textarea#workout{
+    display:block; width:100%; min-height:96px; resize:none;
+    border:none; background:var(--fill); border-radius:14px;
+    padding:14px 16px; margin-bottom:10px;
+    font-family:inherit; font-size:16px; font-weight:500;
+    color:var(--text); line-height:1.6; letter-spacing:-0.01em;
+  }
+  textarea#workout::placeholder{color:var(--gray); font-weight:500;}
+
+  .logtitle{margin:22px 0 4px; font-size:14px; color:var(--sub); font-weight:600;}
+  .logrow{display:flex; gap:12px; padding:13px 0; border-bottom:1px solid var(--line);}
+  .logrow:last-child{border-bottom:none; padding-bottom:0;}
+  .logdate{flex:none; width:64px; font-size:13px; color:var(--sub); font-weight:600; padding-top:1px;}
+  .logtext{flex:1; font-size:15px; font-weight:500; line-height:1.55; word-break:break-word;}
+
   .ghost{
     position:relative; display:inline-flex; align-items:center; justify-content:center;
     height:54px; padding:0 20px; border:1px solid #E5E8EB; border-radius:14px;
@@ -174,17 +160,10 @@
 </section>
 
 <section class="card">
-  <h2>오늘 할 일</h2>
-  <ul class="tasks" id="tasks"></ul>
-</section>
-
-<section class="card">
-  <h2>이번 주</h2>
-  <div class="week" id="week"></div>
-  <div class="tennis">
-    <p>테니스 주 3회</p>
-    <div class="dots" id="tennis"></div>
-  </div>
+  <h2>오늘 운동</h2>
+  <textarea id="workout" rows="3" placeholder="예) 스텝퍼 40분, 푸쉬업 30개"></textarea>
+  <button class="primary wide" id="saveWorkout">저장</button>
+  <div id="workoutLog"></div>
 </section>
 
 <section class="card">
@@ -204,22 +183,16 @@
 <script>
 (function(){
   var KEY='diet63.v1', START=72.0, GOAL=63.0;
-  var TASKS=[
-    {k:'am',    t:'아침 공복 유지'},
-    {k:'step',  t:'스텝퍼 40분'},
-    {k:'lunch', t:'점심 일반식'},
-    {k:'ten',   t:'테니스 (주 3회)'},
-    {k:'pm',    t:'7시 이후 금식'},
-    {k:'ex',    t:'푸쉬업 + 스쿼트·플랭크'}
+  var QUITS=[
+    {k:'coffee',  t:'커피'},
+    {k:'alcohol', t:'술'}
   ];
   var DAYNAME=['월','화','수','목','금','토','일'];
-  var QUITS=[
-    {k:'coffee',  t:'커피', o:'커피를'},
-    {k:'alcohol', t:'술',   o:'술을'}
-  ];
+  var DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
 
-
-  var db={weights:{},checks:{},streaks:{},lastBackup:''};
+  // checks 는 예전 체크리스트 기록이다. 화면에는 더 이상 쓰지 않지만
+  // 저장할 때 같이 넣어 두어 지난 기록이 지워지지 않게 한다.
+  var db={weights:{},checks:{},streaks:{},workouts:{},lastBackup:''};
   try{
     var raw=localStorage.getItem(KEY);
     if(raw){
@@ -227,6 +200,7 @@
       db.weights=p.weights||{};
       db.checks=p.checks||{};
       db.streaks=p.streaks||{};
+      db.workouts=p.workouts||{};
       db.lastBackup=p.lastBackup||'';
     }
   }catch(e){}
@@ -235,7 +209,14 @@
   function pad(n){ return (n<10?'0':'')+n; }
   function key(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
   function toDate(s){ var a=s.split('-'); return new Date(+a[0],+a[1]-1,+a[2]); }
+  function md(s){ var d=toDate(s); return (d.getMonth()+1)+'월 '+d.getDate()+'일'; }
   var TODAY=key(new Date());
+
+  function esc(t){
+    return String(t).replace(/[&<>"]/g,function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+    }).replace(/\n/g,'<br>');
+  }
 
   function signed(v){
     var s=Math.abs(v).toFixed(1);
@@ -279,9 +260,9 @@
     var f=document.getElementById('fromStart');
     f.textContent=signed(cur-start); tone(f,cur-start);
 
-    var p=document.getElementById('fromPrev');
-    if(prev===null){ p.textContent='-'; p.className=''; }
-    else { p.textContent=signed(cur-prev); tone(p,cur-prev); }
+    var pv=document.getElementById('fromPrev');
+    if(prev===null){ pv.textContent='-'; pv.className=''; }
+    else { pv.textContent=signed(cur-prev); tone(pv,cur-prev); }
 
     var span=start-GOAL;
     var ratio = span>0 ? (start-cur)/span : (cur<=GOAL?1:0);
@@ -313,7 +294,7 @@
     var gy=Y(GOAL).toFixed(1);
     var last=ds.length-1;
 
-    function md(s){ var d=toDate(s); return (d.getMonth()+1)+'/'+d.getDate(); }
+    function mdShort(s){ var d=toDate(s); return (d.getMonth()+1)+'/'+d.getDate(); }
 
     var dots=vals.map(function(v,i){
       if(i===last) return '';
@@ -333,46 +314,9 @@
       dots+
       '<circle cx="'+X(last).toFixed(1)+'" cy="'+Y(vals[last]).toFixed(1)+'" r="6" fill="#fff" stroke="#3182F6" stroke-width="3"/>'+
       '<text x="'+X(last).toFixed(1)+'" y="'+(Y(vals[last])-13).toFixed(1)+'" text-anchor="end" font-size="12" font-weight="800" fill="#191F28">'+vals[last].toFixed(1)+'</text>'+
-      '<text x="'+L+'" y="'+(H-8)+'" font-size="11" font-weight="600" fill="#8B95A1">'+md(ds[0])+'</text>'+
-      '<text x="'+(W-R)+'" y="'+(H-8)+'" text-anchor="end" font-size="11" font-weight="600" fill="#8B95A1">'+md(ds[last])+'</text>'+
+      '<text x="'+L+'" y="'+(H-8)+'" font-size="11" font-weight="600" fill="#8B95A1">'+mdShort(ds[0])+'</text>'+
+      '<text x="'+(W-R)+'" y="'+(H-8)+'" text-anchor="end" font-size="11" font-weight="600" fill="#8B95A1">'+mdShort(ds[last])+'</text>'+
       '</svg>';
-  }
-
-  function renderTasks(){
-    var c=db.checks[TODAY]||{};
-    var ul=document.getElementById('tasks');
-    ul.innerHTML=TASKS.map(function(t){
-      return '<li data-k="'+t.k+'" class="'+(c[t.k]?'on':'')+'">'+
-        '<span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12.5l5.5 5.5L20 7" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'+
-        '<p>'+t.t+'</p></li>';
-    }).join('');
-  }
-
-  function weekDays(){
-    var t=new Date(), wd=(t.getDay()+6)%7;
-    var out=[];
-    for(var i=0;i<7;i++){
-      out.push(new Date(t.getFullYear(),t.getMonth(),t.getDate()-wd+i));
-    }
-    return out;
-  }
-
-  function renderWeek(){
-    var days=weekDays();
-    document.getElementById('week').innerHTML=days.map(function(d,i){
-      var k=key(d), c=db.checks[k]||{}, n=0;
-      TASKS.forEach(function(t){ if(c[t.k]) n++; });
-      var h=Math.round(n/TASKS.length*100);
-      return '<div class="day'+(k===TODAY?' today':'')+'">'+
-        '<div class="track"><i style="height:'+h+'%"></i></div>'+
-        '<em>'+DAYNAME[i]+'</em></div>';
-    }).join('');
-
-    var cnt=0;
-    days.forEach(function(d){ var c=db.checks[key(d)]||{}; if(c.ten) cnt++; });
-    var dots='';
-    for(var i=0;i<3;i++) dots+='<span class="'+(i<cnt?'on':'')+'"></span>';
-    document.getElementById('tennis').innerHTML=dots+'<b>'+cnt+' / 3회</b>';
   }
 
   // 끊기 시작일이 없으면 앱을 처음 연 날을 시작일로 잡는다
@@ -393,7 +337,7 @@
 
   function renderQuits(){
     document.getElementById('quits').innerHTML=QUITS.map(function(q){
-      var st=db.streaks[q.k], n=daysSince(st.start), d=toDate(st.start);
+      var st=db.streaks[q.k], n=daysSince(st.start);
       return '<div class="quit">'+
         '<div class="qhead">'+
           '<div>'+
@@ -404,7 +348,7 @@
             '<input type="date" data-q="'+q.k+'" value="'+st.start+'" max="'+TODAY+'">'+
           '</label>'+
         '</div>'+
-        '<p class="qsub">'+(d.getMonth()+1)+'월 '+d.getDate()+'일부터</p>'+
+        '<p class="qsub">'+md(st.start)+'부터</p>'+
       '</div>';
     }).join('');
   }
@@ -422,13 +366,44 @@
     toast((q?q.t:'')+' 시작일을 바꿨어요');
   });
 
-  var DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
+  function renderWorkout(){
+    var ta=document.getElementById('workout');
+    if(document.activeElement!==ta) ta.value=db.workouts[TODAY]||'';
+
+    var ds=Object.keys(db.workouts).filter(function(d){
+      return d!==TODAY && DATE_RE.test(d) && db.workouts[d];
+    }).sort().reverse().slice(0,7);
+
+    var box=document.getElementById('workoutLog');
+    if(!ds.length){ box.innerHTML=''; return; }
+    box.innerHTML='<div class="logtitle">지난 기록</div>'+ds.map(function(d){
+      return '<div class="logrow">'+
+        '<span class="logdate">'+md(d)+'</span>'+
+        '<span class="logtext">'+esc(db.workouts[d])+'</span>'+
+      '</div>';
+    }).join('');
+  }
+
+  function saveWorkout(silent){
+    var v=document.getElementById('workout').value.trim();
+    var had=!!db.workouts[TODAY];
+    if(v===(db.workouts[TODAY]||'')){ if(!silent) toast('저장했어요'); return; }
+    if(v) db.workouts[TODAY]=v; else delete db.workouts[TODAY];
+    save(); renderWorkout();
+    if(!silent) toast(v?'운동 기록을 저장했어요':(had?'오늘 기록을 지웠어요':'저장했어요'));
+  }
+
+  document.getElementById('saveWorkout').addEventListener('click',function(){
+    document.getElementById('workout').blur();
+    saveWorkout(false);
+  });
+  // 저장을 깜빡해도 입력칸에서 손을 떼면 조용히 저장된다
+  document.getElementById('workout').addEventListener('blur',function(){ saveWorkout(true); });
 
   function renderBackup(){
     var el=document.getElementById('backupInfo');
     if(db.lastBackup && DATE_RE.test(db.lastBackup)){
-      var d=toDate(db.lastBackup);
-      el.textContent='마지막 백업 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';
+      el.textContent='마지막 백업 '+md(db.lastBackup);
     }else{
       el.textContent='아직 백업한 적이 없어요';
     }
@@ -476,26 +451,26 @@
     r.onload=function(){
       var p=null;
       try{ p=JSON.parse(r.result); }catch(err){}
-      if(!p || typeof p!=='object' || (!p.weights && !p.checks && !p.streaks)){
+      if(!p || typeof p!=='object' || (!p.weights && !p.workouts && !p.streaks && !p.checks)){
         toast('63 프로젝트 백업 파일이 아니에요'); input.value=''; return;
       }
-      var W=p.weights||{}, C=p.checks||{}, S=p.streaks||{};
-      var nw=0, nc=0, k;
+      var W=p.weights||{}, K=p.workouts||{}, S=p.streaks||{}, C=p.checks||{};
+      var nw=0, nk=0, k;
       for(k in W){ if(DATE_RE.test(k) && !isNaN(parseFloat(W[k]))) nw++; }
-      for(k in C){ if(DATE_RE.test(k) && C[k] && typeof C[k]==='object') nc++; }
-      if(!nw && !nc){ toast('불러올 기록이 없어요'); input.value=''; return; }
-      if(!confirm('체중 기록 '+nw+'개, 체크 '+nc+'일치가 들어있어요.\n지금 기록에 합칠까요?')){
+      for(k in K){ if(DATE_RE.test(k) && typeof K[k]==='string' && K[k]) nk++; }
+      if(!nw && !nk){ toast('불러올 기록이 없어요'); input.value=''; return; }
+      if(!confirm('체중 기록 '+nw+'개, 운동 기록 '+nk+'일치가 들어있어요.\n지금 기록에 합칠까요?')){
         input.value=''; return;
       }
       for(k in W){
         var v=parseFloat(W[k]);
         if(DATE_RE.test(k) && !isNaN(v)) db.weights[k]=Math.round(v*10)/10;
       }
-      for(k in C){
-        if(!DATE_RE.test(k) || !C[k] || typeof C[k]!=='object') continue;
-        var src=C[k], dst=db.checks[k]||{}, t;
-        for(t in src){ if(src[t]) dst[t]=true; }
-        db.checks[k]=dst;
+      for(k in K){
+        if(DATE_RE.test(k) && typeof K[k]==='string' && K[k]) db.workouts[k]=K[k];
+      }
+      for(k in C){   // 예전 체크리스트 기록도 버리지 않고 함께 보관한다
+        if(DATE_RE.test(k) && C[k] && typeof C[k]==='object') db.checks[k]=C[k];
       }
       QUITS.forEach(function(q){
         var st=S[q.k];
@@ -508,7 +483,10 @@
     r.readAsText(f);
   });
 
-  function renderAll(){ renderHeader(); renderSummary(); renderChart(); renderQuits(); renderTasks(); renderWeek(); renderBackup(); }
+  function renderAll(){
+    renderHeader(); renderSummary(); renderChart();
+    renderQuits(); renderWorkout(); renderBackup();
+  }
 
   document.getElementById('save').addEventListener('click',function(){
     var el=document.getElementById('input');
@@ -522,17 +500,6 @@
 
   document.getElementById('input').addEventListener('keydown',function(e){
     if(e.key==='Enter') document.getElementById('save').click();
-  });
-
-  document.getElementById('tasks').addEventListener('click',function(e){
-    var li=e.target.closest('li'); if(!li) return;
-    var k=li.dataset.k;
-    if(!db.checks[TODAY]) db.checks[TODAY]={};
-    db.checks[TODAY][k]=!db.checks[TODAY][k];
-    if(!db.checks[TODAY][k]) delete db.checks[TODAY][k];
-    save();
-    li.classList.toggle('on');
-    renderWeek();
   });
 
   renderAll();
