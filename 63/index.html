@@ -98,11 +98,17 @@
   }
   textarea#workout::placeholder{color:var(--gray); font-weight:500;}
 
-  .logtitle{margin:22px 0 4px; font-size:14px; color:var(--sub); font-weight:600;}
-  .logrow{display:flex; gap:12px; padding:13px 0; border-bottom:1px solid var(--line);}
-  .logrow:last-child{border-bottom:none; padding-bottom:0;}
-  .logdate{flex:none; width:64px; font-size:13px; color:var(--sub); font-weight:600; padding-top:1px;}
-  .logtext{flex:1; font-size:15px; font-weight:500; line-height:1.55; word-break:break-word;}
+  .logtitle{margin:22px 0 2px; font-size:13px; color:var(--sub); font-weight:700;}
+  .memo{display:flex; align-items:flex-start; gap:10px; padding:12px 0; border-bottom:1px solid var(--line);}
+  .memo:last-child{border-bottom:none; padding-bottom:0;}
+  .memotime{flex:none; width:42px; font-size:12px; color:var(--sub); font-weight:600; padding-top:3px;}
+  .memotext{flex:1; font-size:15px; font-weight:500; line-height:1.55; word-break:break-word;}
+  button.del{
+    flex:none; width:30px; height:30px; margin:-3px -8px 0 0; padding:0;
+    border:none; background:none; color:var(--gray);
+    font-size:21px; line-height:1; font-family:inherit;
+  }
+  button.del:active{color:var(--sub);}
 
   .ghost{
     position:relative; display:inline-flex; align-items:center; justify-content:center;
@@ -160,9 +166,9 @@
 </section>
 
 <section class="card">
-  <h2>오늘 운동</h2>
-  <textarea id="workout" rows="3" placeholder="예) 스텝퍼 40분, 푸쉬업 30개"></textarea>
-  <button class="primary wide" id="saveWorkout">저장</button>
+  <h2>운동 메모</h2>
+  <textarea id="workout" rows="3" placeholder="오늘 한 운동을 적어보세요"></textarea>
+  <button class="primary wide" id="saveWorkout">메모 저장</button>
   <div id="workoutLog"></div>
 </section>
 
@@ -192,7 +198,7 @@
 
   // checks 는 예전 체크리스트 기록이다. 화면에는 더 이상 쓰지 않지만
   // 저장할 때 같이 넣어 두어 지난 기록이 지워지지 않게 한다.
-  var db={weights:{},checks:{},streaks:{},workouts:{},lastBackup:''};
+  var db={weights:{},checks:{},streaks:{},workouts:{},memos:[],draft:'',lastBackup:''};
   try{
     var raw=localStorage.getItem(KEY);
     if(raw){
@@ -201,6 +207,8 @@
       db.checks=p.checks||{};
       db.streaks=p.streaks||{};
       db.workouts=p.workouts||{};
+      db.memos=Array.isArray(p.memos)?p.memos:[];
+      db.draft=p.draft||'';
       db.lastBackup=p.lastBackup||'';
     }
   }catch(e){}
@@ -366,39 +374,95 @@
     toast((q?q.t:'')+' 시작일을 바꿨어요');
   });
 
+  // 예전에 하루에 하나씩 적던 기록을 메모 목록으로 옮긴다
+  (function(){
+    var changed=false, k, have={};
+    db.memos.forEach(function(m){ have[m.id]=1; });
+    for(k in db.workouts){
+      var id='m'+k+'-old';
+      if(DATE_RE.test(k) && db.workouts[k] && !have[id]){
+        db.memos.push({id:id, d:k, tm:'', x:db.workouts[k]});
+        have[id]=1; changed=true;
+      }
+    }
+    if(changed){ db.workouts={}; save(); }
+  })();
+
+  function newId(){
+    return 'm'+Date.now()+Math.random().toString(36).slice(2,6);
+  }
+
+  function dayLabel(d){
+    var diff=Math.round((toDate(TODAY)-toDate(d))/86400000);
+    if(diff===0) return '오늘';
+    if(diff===1) return '어제';
+    return md(d)+' '+DAYNAME[(toDate(d).getDay()+6)%7]+'요일';
+  }
+
+  function sortedMemos(){
+    return db.memos.slice().sort(function(a,b){
+      // 같은 날 같은 시각이면 나중에 적은 것이 위로 온다
+      var A=a.d+' '+(a.tm||'')+' '+(a.id||''), B=b.d+' '+(b.tm||'')+' '+(b.id||'');
+      return A<B ? 1 : (A>B ? -1 : 0);
+    });
+  }
+
   function renderWorkout(){
     var ta=document.getElementById('workout');
-    if(document.activeElement!==ta) ta.value=db.workouts[TODAY]||'';
-
-    var ds=Object.keys(db.workouts).filter(function(d){
-      return d!==TODAY && DATE_RE.test(d) && db.workouts[d];
-    }).sort().reverse().slice(0,7);
+    if(document.activeElement!==ta) ta.value=db.draft||'';
 
     var box=document.getElementById('workoutLog');
-    if(!ds.length){ box.innerHTML=''; return; }
-    box.innerHTML='<div class="logtitle">지난 기록</div>'+ds.map(function(d){
-      return '<div class="logrow">'+
-        '<span class="logdate">'+md(d)+'</span>'+
-        '<span class="logtext">'+esc(db.workouts[d])+'</span>'+
+    var ms=sortedMemos().slice(0,60);
+    if(!ms.length){
+      box.innerHTML='<div class="empty">아직 적은 운동이 없어요</div>';
+      return;
+    }
+    var html='', lastD='';
+    ms.forEach(function(m){
+      if(m.d!==lastD){ html+='<div class="logtitle">'+dayLabel(m.d)+'</div>'; lastD=m.d; }
+      html+='<div class="memo">'+
+        '<span class="memotime">'+esc(m.tm||'')+'</span>'+
+        '<span class="memotext">'+esc(m.x)+'</span>'+
+        '<button class="del" data-id="'+esc(m.id)+'" aria-label="메모 지우기">&times;</button>'+
       '</div>';
-    }).join('');
+    });
+    box.innerHTML=html;
   }
 
-  function saveWorkout(silent){
-    var v=document.getElementById('workout').value.trim();
-    var had=!!db.workouts[TODAY];
-    if(v===(db.workouts[TODAY]||'')){ if(!silent) toast('저장했어요'); return; }
-    if(v) db.workouts[TODAY]=v; else delete db.workouts[TODAY];
-    save(); renderWorkout();
-    if(!silent) toast(v?'운동 기록을 저장했어요':(had?'오늘 기록을 지웠어요':'저장했어요'));
+  function addMemo(){
+    var ta=document.getElementById('workout');
+    var v=ta.value.trim();
+    if(!v){ toast('내용을 적어주세요'); return; }
+    var now=new Date();
+    db.memos.push({
+      id:newId(), d:TODAY,
+      tm:pad(now.getHours())+':'+pad(now.getMinutes()),
+      x:v
+    });
+    db.draft='';
+    save();
+    ta.value=''; ta.blur();
+    renderWorkout();
+    toast('운동 메모를 저장했어요');
   }
 
-  document.getElementById('saveWorkout').addEventListener('click',function(){
-    document.getElementById('workout').blur();
-    saveWorkout(false);
+  document.getElementById('saveWorkout').addEventListener('click',addMemo);
+
+  // 적다 만 글은 따로 담아둬서 앱을 껐다 켜도 남아 있게 한다
+  document.getElementById('workout').addEventListener('blur',function(){
+    var v=document.getElementById('workout').value;
+    if(v===db.draft) return;
+    db.draft=v; save();
   });
-  // 저장을 깜빡해도 입력칸에서 손을 떼면 조용히 저장된다
-  document.getElementById('workout').addEventListener('blur',function(){ saveWorkout(true); });
+
+  document.getElementById('workoutLog').addEventListener('click',function(e){
+    var btn=e.target.closest('button.del'); if(!btn) return;
+    var id=btn.dataset.id;
+    if(!confirm('이 메모를 지울까요?')) return;
+    db.memos=db.memos.filter(function(m){ return m.id!==id; });
+    save(); renderWorkout();
+    toast('메모를 지웠어요');
+  });
 
   function renderBackup(){
     var el=document.getElementById('backupInfo');
@@ -455,19 +519,31 @@
         toast('63 프로젝트 백업 파일이 아니에요'); input.value=''; return;
       }
       var W=p.weights||{}, K=p.workouts||{}, S=p.streaks||{}, C=p.checks||{};
+      var M=Array.isArray(p.memos)?p.memos:[];
       var nw=0, nk=0, k;
       for(k in W){ if(DATE_RE.test(k) && !isNaN(parseFloat(W[k]))) nw++; }
       for(k in K){ if(DATE_RE.test(k) && typeof K[k]==='string' && K[k]) nk++; }
+      M.forEach(function(m){ if(m && m.id && DATE_RE.test(m.d) && typeof m.x==='string' && m.x) nk++; });
       if(!nw && !nk){ toast('불러올 기록이 없어요'); input.value=''; return; }
-      if(!confirm('체중 기록 '+nw+'개, 운동 기록 '+nk+'일치가 들어있어요.\n지금 기록에 합칠까요?')){
+      if(!confirm('체중 기록 '+nw+'개, 운동 메모 '+nk+'개가 들어있어요.\n지금 기록에 합칠까요?')){
         input.value=''; return;
       }
       for(k in W){
         var v=parseFloat(W[k]);
         if(DATE_RE.test(k) && !isNaN(v)) db.weights[k]=Math.round(v*10)/10;
       }
-      for(k in K){
-        if(DATE_RE.test(k) && typeof K[k]==='string' && K[k]) db.workouts[k]=K[k];
+      var have={};
+      db.memos.forEach(function(m){ have[m.id]=1; });
+      M.forEach(function(m){
+        if(!m || !m.id || have[m.id]) return;
+        if(!DATE_RE.test(m.d) || typeof m.x!=='string' || !m.x) return;
+        db.memos.push({id:m.id, d:m.d, tm:(m.tm||''), x:m.x}); have[m.id]=1;
+      });
+      for(k in K){   // 예전 형식의 백업도 메모로 합친다
+        var oid='m'+k+'-old';
+        if(DATE_RE.test(k) && typeof K[k]==='string' && K[k] && !have[oid]){
+          db.memos.push({id:oid, d:k, tm:'', x:K[k]}); have[oid]=1;
+        }
       }
       for(k in C){   // 예전 체크리스트 기록도 버리지 않고 함께 보관한다
         if(DATE_RE.test(k) && C[k] && typeof C[k]==='object') db.checks[k]=C[k];
